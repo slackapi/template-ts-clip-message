@@ -1,4 +1,4 @@
-import { PlainTextElement, Overflow, Datepicker, Select, StaticSelect, MultiSelect, ImageElement, ContextBlock, SectionBlock, Option, DividerBlock, Action, ActionsBlock, Button, InputBlock, PlainTextInput, ExternalSelect, MrkdwnElement } from '@slack/bolt/node_modules/@slack/types'
+import { PlainTextElement, Overflow, Datepicker, Select, StaticSelect, MultiSelect, ImageElement, ContextBlock, SectionBlock, Option, DividerBlock, Action, ActionsBlock, Button, InputBlock, PlainTextInput, ExternalSelect, MrkdwnElement } from '@slack/types'
 
 export function plainTextElement(text: string): PlainTextElement {
     return {
