@@ -16,9 +16,9 @@
   "author": "Colm Doyle",
   "license": "MIT",
   "dependencies": {
-    "@slack/bolt": "^1.8.0",
+    "@slack/bolt": "^2.0.1",
     "dotenv": "^8.2.0",
-    "typescript": "^3.7.2"
+    "typescript": "^3.8.3"
   },
   "devDependencies": {
     "@types/chai": "^4.2.5",
