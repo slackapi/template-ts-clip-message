@@ -47,7 +47,7 @@ async function getClipsForUser(userID: string): Promise<any> {
         const connection = await createConnection(databaseConfig);
 
         connection.query(
-            'SELECT user_id, message_ts, channel_id from clippings where user_id = ?',
+            'SELECT id, user_id, message_ts, channel_id from clippings where user_id = ? AND dismissed = 0',
             [
                 userID,
             ]
@@ -61,6 +61,26 @@ async function getClipsForUser(userID: string): Promise<any> {
 
     })
 }
+
+async function dismissClip(clipID: string): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+        const connection = await createConnection(databaseConfig);
+
+        connection.execute(
+            'UPDATE clippings SET dismissed = 1 where id = ?',
+            [
+                clipID,
+            ]
+        ).then(() => {
+            resolve(true);
+        }
+        ).catch((error) => {
+            reject(error)
+        });
+
+    })
+}
+
 
 app.shortcut('clip_message', async ({ shortcut, context, ack }) => {
     await ack();
@@ -119,7 +139,6 @@ app.event('app_home_opened', async ({ event, context }) => {
     console.log(event);
     console.log(context);
     const clips = await getClipsForUser(event.user);
-    console.log(clips[0]);
     const clippings: KnownBlock[] = [];
     for (const clipping of clips) {
         const convo = await app.client.conversations.history({
@@ -137,6 +156,16 @@ app.event('app_home_opened', async ({ event, context }) => {
                     text: convo.messages[0].text,
                     emoji: true,
                 },
+                accessory: {
+                    type: 'button',
+                    text: {
+                        type: 'plain_text',
+                        text: 'Dismiss',
+                        emoji: true,
+                    },
+                    value: `${clipping['id']}`,
+                    action_id: 'dismiss-clip'
+                },
             },
             {
                 type: 'context',
@@ -153,6 +182,61 @@ app.event('app_home_opened', async ({ event, context }) => {
     app.client.views.publish({
         token: context.botToken,
         user_id: event.user,
+        view: {
+            type: 'home',
+            blocks: clippings,
+        }
+    });
+});
+
+app.action('dismiss-clip', async ({context, ack, body}) => {
+    await ack();
+    console.log(body);
+    await dismissClip(body.actions[0]['value']);
+    const clips = await getClipsForUser(body.user.id);
+    const clippings: KnownBlock[] = [];
+    for (const clipping of clips) {
+        const convo = await app.client.conversations.history({
+            token: context.botToken,
+            channel: clipping['channel_id'],
+            inclusive: true,
+            limit: 1,
+            latest: clipping['message_ts']
+        });
+        clippings.push(
+            {
+                type: 'section',
+                text: {
+                    type: 'plain_text',
+                    text: convo.messages[0].text,
+                    emoji: true,
+                },
+                accessory: {
+                    type: 'button',
+                    text: {
+                        type: 'plain_text',
+                        text: 'Dismiss',
+                        emoji: true,
+                    },
+                    value: `${clips['id']}`,
+                    action_id: 'dismiss-clip'
+                },
+            },
+            {
+                type: 'context',
+                elements: [
+                    {
+                        type: 'mrkdwn',
+                        text: `This message from <@${convo.messages[0].user}> was clipped from <#${clipping['channel_id']}>`,
+                    },
+                ],
+            },
+        );
+    }
+
+    app.client.views.publish({
+        token: context.botToken,
+        user_id: body.user.id,
         view: {
             type: 'home',
             blocks: clippings,
