@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { App, MessageShortcut } from '@slack/bolt'
-import { createConnection } from "mysql2/promise";
+import { KnownBlock } from '@slack/types'
+import { createConnection, RowDataPacket } from "mysql2/promise";
 
 const botToken = process.env.BOT_TOKEN;
 
@@ -33,6 +34,26 @@ async function insertClipIntoDB(userID: string, messageTS: string, channelID: st
             ]
         ).then(() => {
             resolve(true);
+        }
+        ).catch((error) => {
+            reject(error)
+        });
+
+    })
+}
+
+async function getClipsForUser(userID: string): Promise<any> {
+    return new Promise(async (resolve, reject) => {
+        const connection = await createConnection(databaseConfig);
+
+        connection.query(
+            'SELECT user_id, message_ts, channel_id from clippings where user_id = ?',
+            [
+                userID,
+            ]
+        ).then(async ([rows]) => {
+            const results = rows as RowDataPacket;
+            resolve(results);
         }
         ).catch((error) => {
             reject(error)
@@ -91,6 +112,51 @@ app.shortcut('clip_message', async ({ shortcut, context, ack }) => {
             trigger_id: messageShortcut.trigger_id
         })
 
+    });
+});
+
+app.event('app_home_opened', async ({ event, context }) => {
+    console.log(event);
+    console.log(context);
+    const clips = await getClipsForUser(event.user);
+    console.log(clips[0]);
+    const clippings: KnownBlock[] = [];
+    for (const clipping of clips) {
+        const convo = await app.client.conversations.history({
+            token: context.botToken,
+            channel: clipping['channel_id'],
+            inclusive: true,
+            limit: 1,
+            latest: clipping['message_ts']
+        });
+        clippings.push(
+            {
+                type: 'section',
+                text: {
+                    type: 'plain_text',
+                    text: convo.messages[0].text,
+                    emoji: true,
+                },
+            },
+            {
+                type: 'context',
+                elements: [
+                    {
+                        type: 'mrkdwn',
+                        text: `This message from <@${convo.messages[0].user}> was clipped from <#${clipping['channel_id']}>`,
+                    },
+                ],
+            },
+        );
+    }
+
+    app.client.views.publish({
+        token: context.botToken,
+        user_id: event.user,
+        view: {
+            type: 'home',
+            blocks: clippings,
+        }
     });
 });
 
